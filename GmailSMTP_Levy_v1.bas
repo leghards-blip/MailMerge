@@ -18,7 +18,7 @@ Option Explicit
 Private Const CFG_SHEET As String = "__Config"
 Private Const NM_USER As String = "LEVY_SMTP_USER"
 Private Const NM_PASS As String = "LEVY_SMTP_APP"
-Private Const SMTP_HOST As String = "smtp.gmail.com"
+Private Const SMTP_HOST As String = "smtp-relay.gmail.com"
 
 ' === Public API ===============================================================
 
