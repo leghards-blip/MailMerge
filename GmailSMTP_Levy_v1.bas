@@ -1,9 +1,9 @@
-
 Attribute VB_Name = "GmailSMTP_Levy_v1"
 Option Explicit
 
-' ===== GmailSMTP_Levy_v1.bas =====
-' Send emails as levy@beraderproperties.com via Gmail SMTP (TLS, port 587)
+' ===== GmailSMTP_Levy_v1.bas (Updated by Gemini) =====
+' Send emails as levy@beraderproperties.com via Gmail SMTP
+' Now includes dual-port fallback (587/TLS, 465/SSL) and improved error handling.
 ' Works independently of Outlook profiles or who runs the macro.
 '
 ' Public:
@@ -16,10 +16,9 @@ Option Explicit
 '   - Windows with CDO (present by default on most systems). Late-bound; no references needed.
 '
 Private Const CFG_SHEET As String = "__Config"
-Private Const NM_USER As String  = "LEVY_SMTP_USER"
-Private Const NM_PASS As String  = "LEVY_SMTP_APP"
+Private Const NM_USER As String = "LEVY_SMTP_USER"
+Private Const NM_PASS As String = "LEVY_SMTP_APP"
 Private Const SMTP_HOST As String = "smtp.gmail.com"
-Private Const SMTP_PORT As Long = 587
 
 ' === Public API ===============================================================
 
@@ -43,7 +42,8 @@ Public Sub ClearLevyCredentials()
     MsgBox "Levy SMTP credentials cleared.", vbInformation
 End Sub
 
-' Send as levy@ via Gmail SMTP using CDO. Returns True if sent, False otherwise.
+' Send as levy@ via Gmail SMTP using CDO.
+' Returns True if sent, False otherwise.
 Public Function SendLevyEmail_CDO(ByVal toList As String, ByVal subject As String, _
                                   Optional ByVal htmlBody As String = "", _
                                   Optional ByVal textBody As String = "", _
@@ -54,62 +54,93 @@ Public Function SendLevyEmail_CDO(ByVal toList As String, ByVal subject As Strin
     Dim user As String, pwd As String
     Dim cfg As Object, msg As Object
     Dim i As Long
-    
+    Dim portsToTry As Variant, p As Variant
+    Dim lastError As String, success As Boolean
+
     user = LoadObfuscated(NM_USER)
-    pwd  = LoadObfuscated(NM_PASS)
+    pwd = LoadObfuscated(NM_PASS)
     If Len(user) = 0 Or Len(pwd) = 0 Then
         MsgBox "Levy SMTP credentials not set. Run SetLevyCredentials first.", vbExclamation
         Exit Function
     End If
-    
-    On Error GoTo Fail
-    Set cfg = CreateObject("CDO.Configuration")
-    With cfg.Fields
-        .Item("http://schemas.microsoft.com/cdo/configuration/sendusing") = 2
-        .Item("http://schemas.microsoft.com/cdo/configuration/smtpserver") = SMTP_HOST
-        .Item("http://schemas.microsoft.com/cdo/configuration/smtpserverport") = SMTP_PORT
-        .Item("http://schemas.microsoft.com/cdo/configuration/smtpauthenticate") = 1
-        .Item("http://schemas.microsoft.com/cdo/configuration/sendusername") = user
-        .Item("http://schemas.microsoft.com/cdo/configuration/sendpassword") = pwd
-        .Item("http://schemas.microsoft.com/cdo/configuration/smtpusessl") = True
-        .Item("http://schemas.microsoft.com/cdo/configuration/smtpconnectiontimeout") = 30
-        .Update
-    End With
-    
-    Set msg = CreateObject("CDO.Message")
-    Set msg.Configuration = cfg
-    With msg
-        .From = """" & "Levy Statements" & """ <" & user & ">"
-        .To = toList
-        If Len(ccList)  > 0 Then .CC  = ccList
-        If Len(bccList) > 0 Then .BCC = bccList
-        If Len(replyTo) > 0 Then .ReplyTo = replyTo
-        .Subject = subject
-        If Len(htmlBody) > 0 Then
-            .HTMLBody = htmlBody
-        Else
-            .TextBody = textBody
-        End If
-        If Not IsMissing(attachments) Then
-            If IsArray(attachments) Then
-                For i = LBound(attachments) To UBound(attachments)
-                    If Len(attachments(i)) > 0 Then .AddAttachment CStr(attachments(i))
-                Next i
-            ElseIf VarType(attachments) = vbString Then
-                If Len(attachments) > 0 Then .AddAttachment CStr(attachments)
+
+    ' --- NEW: Dual-port fallback logic ---
+    portsToTry = Array(587, 465) ' Try port 587 (TLS) first, then 465 (SSL)
+    success = False
+
+    For Each p In portsToTry
+        On Error GoTo SendAttemptFailed
+        Set cfg = CreateObject("CDO.Configuration")
+        With cfg.Fields
+            .Item("http://schemas.microsoft.com/cdo/configuration/sendusing") = 2
+            .Item("http://schemas.microsoft.com/cdo/configuration/smtpserver") = SMTP_HOST
+            .Item("http://schemas.microsoft.com/cdo/configuration/smtpserverport") = CLng(p)
+            .Item("http://schemas.microsoft.com/cdo/configuration/smtpauthenticate") = 1
+            .Item("http://schemas.microsoft.com/cdo/configuration/sendusername") = user
+            .Item("http://schemas.microsoft.com/cdo/configuration/sendpassword") = pwd
+            
+            ' --- NEW: Port-specific security settings ---
+            Select Case CLng(p)
+                Case 587 ' Use STARTTLS (Transport Layer Security)
+                    .Item("http://schemas.microsoft.com/cdo/configuration/sendtls") = True
+                    .Item("http://schemas.microsoft.com/cdo/configuration/smtpusessl") = False
+                Case 465 ' Use implicit SSL (Secure Sockets Layer)
+                    .Item("http://schemas.microsoft.com/cdo/configuration/sendtls") = False
+                    .Item("http://schemas.microsoft.com/cdo/configuration/smtpusessl") = True
+            End Select
+
+            .Item("http://schemas.microsoft.com/cdo/configuration/smtpconnectiontimeout") = 60 ' Increased timeout
+            .Update
+        End With
+
+        Set msg = CreateObject("CDO.Message")
+        Set msg.Configuration = cfg
+        With msg
+            .From = """" & "Levy Statements" & """ <" & user & ">"
+            .To = toList
+            If Len(ccList) > 0 Then .CC = ccList
+            If Len(bccList) > 0 Then .BCC = bccList
+            If Len(replyTo) > 0 Then .ReplyTo = replyTo
+            .Subject = subject
+            If Len(htmlBody) > 0 Then
+                .HTMLBody = htmlBody
+            Else
+                .TextBody = textBody
             End If
+            If Not IsMissing(attachments) Then
+                If IsArray(attachments) Then
+                    For i = LBound(attachments) To UBound(attachments)
+                        If Len(attachments(i)) > 0 Then .AddAttachment CStr(attachments(i))
+                    Next i
+                ElseIf VarType(attachments) = vbString Then
+                    If Len(attachments) > 0 Then .AddAttachment CStr(attachments)
+                End If
+            End If
+            .Send
+        End With
+        
+        success = True ' If we got here, it sent successfully
+        Exit For ' Exit the loop on success
+
+SendAttemptFailed:
+        If Err.Number <> 0 Then
+            lastError = lastError & "Port " & p & " failed: " & Err.Description & vbCrLf
+            Err.Clear
         End If
-        .Send
-    End With
-    
-    SendLevyEmail_CDO = True
-    Exit Function
-Fail:
-    SendLevyEmail_CDO = False
-    MsgBox "Send failure (levy@ Gmail SMTP): " & Err.Number & " - " & Err.Description, vbCritical
+    Next p
+
+    If success Then
+        SendLevyEmail_CDO = True
+    Else
+        SendLevyEmail_CDO = False
+        MsgBox "Send failure (levy@ Gmail SMTP):" & vbCrLf & vbCrLf & Trim(lastError), vbCritical
+    End If
+
 End Function
 
+
 ' === Credential storage (very hidden + simple obfuscation) ====================
+' (No changes in this section)
 
 Private Sub SaveObfuscated(ByVal nameKey As String, ByVal plain As String)
     Dim ws As Worksheet, obf As String
