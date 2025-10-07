@@ -149,7 +149,10 @@ Private Sub SaveObfuscated(ByVal nameKey As String, ByVal plain As String)
     On Error Resume Next
     ThisWorkbook.Names(nameKey).Delete
     On Error GoTo 0
-    ThisWorkbook.Names.Add Name:=nameKey, RefersTo:="=""" & obf & """"
+    
+    ' --- FIX: Escape any double-quotes in the obfuscated string to prevent formula errors ---
+    ThisWorkbook.Names.Add Name:=nameKey, RefersTo:="=""" & Replace(obf, """", """""") & """"
+    
     ws.Visible = xlSheetVeryHidden
 End Sub
 
