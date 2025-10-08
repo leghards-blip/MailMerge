@@ -58,14 +58,15 @@ Public Function SendLevyEmail_CDO(ByVal toList As String, ByVal subject As Strin
     Dim lastError As String, success As Boolean
 
     user = LoadObfuscated(NM_USER)
-    pwd = LoadObfuscated(NM_PASS)
-    If Len(user) = 0 Or Len(pwd) = 0 Then
-        MsgBox "Levy SMTP credentials not set. Run SetLevyCredentials first.", vbExclamation
+    ' pwd = LoadObfuscated(NM_PASS) ' No longer needed for authentication
+    
+    ' We still need the username for the 'From' address
+    If Len(user) = 0 Then
+        MsgBox "Levy SMTP username not set. Run SetLevyCredentials first (password will be ignored but username is needed).", vbExclamation
         Exit Function
     End If
 
-    ' --- NEW: Dual-port fallback logic ---
-    portsToTry = Array(587, 465) ' Try port 587 (TLS) first, then 465 (SSL)
+    portsToTry = Array(587, 465)
     success = False
 
     For Each p In portsToTry
@@ -75,21 +76,18 @@ Public Function SendLevyEmail_CDO(ByVal toList As String, ByVal subject As Strin
             .Item("http://schemas.microsoft.com/cdo/configuration/sendusing") = 2
             .Item("http://schemas.microsoft.com/cdo/configuration/smtpserver") = SMTP_HOST
             .Item("http://schemas.microsoft.com/cdo/configuration/smtpserverport") = CLng(p)
-            .Item("http://schemas.microsoft.com/cdo/configuration/smtpauthenticate") = 1
-            .Item("http://schemas.microsoft.com/cdo/configuration/sendusername") = user
-            .Item("http://schemas.microsoft.com/cdo/configuration/sendpassword") = pwd
             
-            ' --- NEW: Port-specific security settings ---
-            Select Case CLng(p)
-                Case 587 ' Use STARTTLS (Transport Layer Security)
-                    .Item("http://schemas.microsoft.com/cdo/configuration/sendtls") = True
-                    .Item("http://schemas.microsoft.com/cdo/configuration/smtpusessl") = False
-                Case 465 ' Use implicit SSL (Secure Sockets Layer)
-                    .Item("http://schemas.microsoft.com/cdo/configuration/sendtls") = False
-                    .Item("http://schemas.microsoft.com/cdo/configuration/smtpusessl") = True
-            End Select
-
-            .Item("http://schemas.microsoft.com/cdo/configuration/smtpconnectiontimeout") = 60 ' Increased timeout
+            ' --- MODIFIED: Use Anonymous authentication for IP-based relay ---
+            .Item("http://schemas.microsoft.com/cdo/configuration/smtpauthenticate") = 0 ' 0 = cdoAnonymous
+            
+            ' These fields are no longer sent
+            ' .Item("http://schemas.microsoft.com/cdo/configuration/sendusername") = user
+            ' .Item("http://schemas.microsoft.com/cdo/configuration/sendpassword") = pwd
+            
+            ' Encryption is still required by the server rule
+            .Item("http://schemas.microsoft.com/cdo/configuration/smtpusessl") = True
+            
+            .Item("http://schemas.microsoft.com/cdo/configuration/smtpconnectiontimeout") = 60
             .Update
         End With
 
@@ -107,7 +105,7 @@ Public Function SendLevyEmail_CDO(ByVal toList As String, ByVal subject As Strin
             Else
                 .TextBody = textBody
             End If
-            If Not IsMissing(attachments) Then
+            If Not Ismissing(attachments) Then
                 If IsArray(attachments) Then
                     For i = LBound(attachments) To UBound(attachments)
                         If Len(attachments(i)) > 0 Then .AddAttachment CStr(attachments(i))
@@ -119,8 +117,8 @@ Public Function SendLevyEmail_CDO(ByVal toList As String, ByVal subject As Strin
             .Send
         End With
         
-        success = True ' If we got here, it sent successfully
-        Exit For ' Exit the loop on success
+        success = True
+        Exit For
 
 SendAttemptFailed:
         If Err.Number <> 0 Then
