@@ -1,5 +1,5 @@
-
 Attribute VB_Name = "TemplateEngine_v1"
+
 Option Explicit
 
 ' ===== TemplateEngine_v1.bas =====
