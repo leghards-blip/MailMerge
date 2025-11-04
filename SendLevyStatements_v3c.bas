@@ -1,5 +1,5 @@
-
 Attribute VB_Name = "SendLevyStatements_v3c"
+
 Option Explicit
 
 ' ===== SendLevyStatements_v3c.bas =====
@@ -38,9 +38,9 @@ Public Sub SendAllLevyStatements_UsingTemplate_V3c()
     Application.EnableEvents = False
     Application.Calculation = xlCalculationManual
     
-    complexCode = Trim$(CStr(ws.Range("F1").Value))
-    monthYear  = Trim$(CStr(ws.Range("F2").Value))
-    tplPath    = GetTemplatePath(ws)
+    complexCode = Trim$(CStr(ws.Range("G3").Value))
+    monthYear = Trim$(CStr(ws.Range("G4").Value))
+    tplPath = GetTemplatePath(ws)
     
     If Dir(tplPath, vbNormal) = vbNullString Then
         MsgBox "Email template not found:" & vbCrLf & tplPath & vbCrLf & _
@@ -51,8 +51,8 @@ Public Sub SendAllLevyStatements_UsingTemplate_V3c()
     r = 2: blanks = 0: sent = 0: skipped = 0
     Do While blanks < 10
         emailAddr = Trim$(CStr(ws.Cells(r, COL_EMAIL).Value))
-        unitNo    = Trim$(CStr(ws.Cells(r, COL_UNIT).Value))
-        pdfPath   = Trim$(CStr(ws.Cells(r, COL_PATH).Value))
+        unitNo = Trim$(CStr(ws.Cells(r, COL_UNIT).Value))
+        pdfPath = Trim$(CStr(ws.Cells(r, COL_PATH).Value))
         
         If Len(emailAddr) = 0 And Len(unitNo) = 0 And Len(pdfPath) = 0 Then
             blanks = blanks + 1
@@ -75,7 +75,7 @@ Public Sub SendAllLevyStatements_UsingTemplate_V3c()
             subj = complexCode & " " & monthYear & " Levy Statement - " & unitNo
             htmlBody = TemplateEngine_v1.BuildEmailHtmlFromFile( _
                            tplPath, _
-                           Array("UNIT","COMPLEX","MONTHYEAR"), _
+                           Array("UNIT", "COMPLEX", "MONTHYEAR"), _
                            Array(unitNo, complexCode, monthYear) _
                         )
             
@@ -83,6 +83,7 @@ Public Sub SendAllLevyStatements_UsingTemplate_V3c()
                     toList:=emailAddr, _
                     subject:=subj, _
                     htmlBody:=htmlBody, _
+                    bccList:="levy@beraderproperties.com", _
                     attachments:=Array(pdfPath) _
                  )
             
