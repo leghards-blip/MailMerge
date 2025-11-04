@@ -98,12 +98,12 @@ Public Function SendLevyEmail_CDO(ByVal toList As String, ByVal subject As Strin
             .To = toList
             If Len(ccList) > 0 Then .CC = ccList
             If Len(bccList) > 0 Then .BCC = bccList
-            If Len(replyTo) > 0 Then .ReplyTo = replyTo
-            .Subject = subject
+            If Len(replyTo) > 0 Then .replyTo = replyTo
+            .subject = subject
             If Len(htmlBody) > 0 Then
-                .HTMLBody = htmlBody
+                .htmlBody = htmlBody
             Else
-                .TextBody = textBody
+                .textBody = textBody
             End If
             If Not Ismissing(attachments) Then
                 If IsArray(attachments) Then
