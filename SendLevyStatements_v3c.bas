@@ -79,7 +79,7 @@ Public Sub SendAllLevyStatements_UsingTemplate_V3c()
                            Array(unitNo, complexCode, monthYear) _
                         )
             
-            ok = GmailSMTP_Levy_v1.SendLevyEmail_CDO( _
+            ok = GmailSMTP_Levy_v1.SendLevyEmail_Outlook( _
                     toList:=emailAddr, _
                     subject:=subj, _
                     htmlBody:=htmlBody, _
