@@ -27,8 +27,7 @@ Public Function SendLevyEmail_Outlook(ByVal toList As String, _
 
     With olMail
         .To = toList
-        If Len(ccList) > 0 Then .CC = ccList
-        If Len(bccList) > 0 Then .BCC = bccList
+        ' CC and BCC are intentionally disabled for this mail flow.
         .subject = subject
 
         If Len(htmlBody) > 0 Then
