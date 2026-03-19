@@ -83,7 +83,6 @@ Public Sub SendAllLevyStatements_UsingTemplate_V3c()
                     toList:=emailAddr, _
                     subject:=subj, _
                     htmlBody:=htmlBody, _
-                    bccList:="levy@beraderproperties.com", _
                     attachments:=Array(pdfPath) _
                  )
             
